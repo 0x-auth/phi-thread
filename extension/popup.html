@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 420px;
+    max-height: 560px;
+    background: #0d0d14;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-y: auto;
+  }
+
+  /* Header */
+  .header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #1a1a2a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header .logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #00d4ff, #7b2ffc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header .tag {
+    font-size: 0.65rem;
+    color: #555;
+    letter-spacing: 1px;
+  }
+
+  /* Search */
+  .search-box {
+    padding: 12px 16px;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 10px 14px;
+    background: #15152a;
+    border: 1px solid #252540;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box input:focus {
+    border-color: #7b2ffc;
+  }
+  .search-box input::placeholder { color: #444; }
+
+  /* Status */
+  .status {
+    padding: 0 16px 8px;
+    font-size: 0.72rem;
+    color: #555;
+  }
+  .status.searching { color: #7b2ffc; }
+
+  /* Results */
+  .results { padding: 0 8px 12px; }
+
+  .result {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .result:hover { background: rgba(123, 47, 252, 0.08); }
+
+  .result .r-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .result .r-num {
+    color: #555;
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 18px;
+    padding-top: 1px;
+  }
+  .result .r-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #e0e0e0;
+    line-height: 1.4;
+    flex-grow: 1;
+  }
+  .result .r-badge {
+    font-size: 0.62rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .result .r-meta {
+    margin-top: 4px;
+    margin-left: 26px;
+    font-size: 0.72rem;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .result .r-platform {
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .result .r-snippet {
+    margin-top: 4px;
+    margin-left: 26px;
+    font-size: 0.72rem;
+    color: #555;
+    font-style: italic;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .result .r-url {
+    margin-top: 3px;
+    margin-left: 26px;
+    font-size: 0.65rem;
+    color: #00a0cc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .r-depth-tag {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+  .depth-accepted { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .depth-top { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+  /* Platform colors */
+  .plat-stackoverflow { background: rgba(244,128,36,0.15); color: #f48024; }
+  .plat-reddit { background: rgba(255,69,0,0.15); color: #ff4500; }
+  .plat-hn { background: rgba(255,102,0,0.15); color: #ff6600; }
+  .plat-github { background: rgba(200,200,200,0.12); color: #ccc; }
+  .plat-twitter { background: rgba(29,161,242,0.15); color: #1da1f2; }
+  .plat-medium { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .plat-devto { background: rgba(153,102,255,0.15); color: #9966ff; }
+  .plat-web { background: rgba(150,150,150,0.1); color: #888; }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #444;
+    font-size: 0.85rem;
+  }
+  .empty .e-icon { font-size: 2rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="logo">phi-thread</span>
+  <span class="tag">CONNECT, DON'T CREATE</span>
+</div>
+
+<div class="search-box">
+  <input id="query" type="text" placeholder="Ask anything... (e.g., docker container keeps restarting)" autofocus>
+</div>
+
+<div id="status" class="status"></div>
+<div id="results" class="results">
+  <div class="empty">
+    <div class="e-icon">&#x03C6;</div>
+    Search across SO, Reddit, HN, GitHub &amp; the web.<br>
+    Deep-links to exact answers, not just question pages.
+  </div>
+</div>
+
+<script src="src/popup.js"></script>
+</body>
+</html>

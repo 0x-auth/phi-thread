@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "phi-thread",
+  "version": "0.2.0",
+  "description": "Find answers across platforms. Connect, don't create.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://api.stackexchange.com/*",
+    "https://www.reddit.com/*",
+    "https://hn.algolia.com/*",
+    "https://api.github.com/*",
+    "https://html.duckduckgo.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.google.com/search*",
+        "*://www.google.co.in/search*",
+        "*://duckduckgo.com/*",
+        "*://www.bing.com/search*"
+      ],
+      "js": ["src/content-google.js"],
+      "css": ["styles/sidebar.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://stackoverflow.com/questions/*",
+        "*://www.reddit.com/r/*/comments/*",
+        "*://news.ycombinator.com/item*"
+      ],
+      "js": ["src/content-platform.js"],
+      "css": ["styles/sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>phi-thread — How It Works</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center;
+    padding: 80px 20px 40px;
+    position: relative;
+  }
+  .hero h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 3.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #00d4ff, #7b2ffc, #ff6b6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero .tagline {
+    font-size: 1.3rem;
+    color: #888;
+    font-weight: 300;
+    letter-spacing: 2px;
+  }
+  .hero .insight {
+    margin-top: 30px;
+    padding: 20px 30px;
+    background: rgba(123, 47, 252, 0.08);
+    border: 1px solid rgba(123, 47, 252, 0.25);
+    border-radius: 12px;
+    display: inline-block;
+    max-width: 700px;
+    font-size: 1.05rem;
+    color: #c0b0e0;
+    line-height: 1.7;
+  }
+  .hero .insight strong { color: #b080ff; }
+
+  /* ── SECTION ── */
+  section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 24px;
+  }
+  section h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    color: #fff;
+  }
+  section h2 .num {
+    color: #7b2ffc;
+    margin-right: 8px;
+  }
+  section .subtitle {
+    color: #777;
+    margin-bottom: 40px;
+    font-size: 0.95rem;
+  }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+    position: relative;
+  }
+  .flow-step {
+    width: 100%;
+    max-width: 850px;
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    position: relative;
+    padding: 24px 0;
+  }
+  .flow-step .icon-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+  }
+  .flow-step .step-icon {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+  }
+  .flow-step .connector {
+    width: 2px;
+    flex-grow: 1;
+    min-height: 30px;
+    background: linear-gradient(to bottom, rgba(123,47,252,0.4), rgba(123,47,252,0.1));
+  }
+  .flow-step:last-child .connector { display: none; }
+
+  .flow-step .content {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 24px 28px;
+    flex-grow: 1;
+    transition: border-color 0.3s;
+  }
+  .flow-step .content:hover {
+    border-color: rgba(123,47,252,0.35);
+  }
+  .flow-step .content h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  .flow-step .content p {
+    color: #999;
+    line-height: 1.7;
+    font-size: 0.92rem;
+  }
+  .flow-step .content code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(123,47,252,0.12);
+    color: #c9a0ff;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 0.82rem;
+  }
+
+  /* icon colors */
+  .icon-query   { background: linear-gradient(135deg, #00d4ff, #0090ff); color: #000; }
+  .icon-cache   { background: linear-gradient(135deg, #22c55e, #16a34a); color: #000; }
+  .icon-index   { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; }
+  .icon-search  { background: linear-gradient(135deg, #7b2ffc, #9333ea); color: #fff; }
+  .icon-deep    { background: linear-gradient(135deg, #ff6b6b, #ef4444); color: #fff; }
+  .icon-rank    { background: linear-gradient(135deg, #06b6d4, #0891b2); color: #000; }
+  .icon-save    { background: linear-gradient(135deg, #10b981, #059669); color: #000; }
+  .icon-return  { background: linear-gradient(135deg, #f472b6, #ec4899); color: #000; }
+
+  /* ── PLATFORM GRID ── */
+  .platforms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .platform-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .platform-card:hover {
+    border-color: rgba(123,47,252,0.4);
+    transform: translateY(-3px);
+  }
+  .platform-card .p-icon { font-size: 2rem; margin-bottom: 8px; }
+  .platform-card .p-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+    color: #fff;
+  }
+  .platform-card .p-api {
+    font-size: 0.75rem;
+    color: #666;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .platform-card .p-coord {
+    font-size: 0.78rem;
+    color: #7b2ffc;
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  .so-color   { border-left: 3px solid #f48024; }
+  .rd-color   { border-left: 3px solid #ff4500; }
+  .hn-color   { border-left: 3px solid #ff6600; }
+  .gh-color   { border-left: 3px solid #f0f0f0; }
+  .ddg-color  { border-left: 3px solid #de5833; }
+
+  /* ── THREAD MATH SECTION ── */
+  .coord-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 0.88rem;
+  }
+  .coord-table th {
+    font-family: 'JetBrains Mono', monospace;
+    color: #7b2ffc;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(123,47,252,0.3);
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .coord-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: #bbb;
+    vertical-align: top;
+  }
+  .coord-table td:first-child { font-weight: 600; color: #ddd; }
+  .coord-table td code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(123,47,252,0.1);
+    color: #c9a0ff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+  .coord-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── DEPTH VISUAL ── */
+  .depth-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 30px 0;
+    max-width: 700px;
+  }
+  .depth-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-left: 3px solid transparent;
+    position: relative;
+  }
+  .depth-row .d-indent { min-width: 0; }
+  .depth-row .d-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .depth-row .d-text { color: #999; font-size: 0.9rem; flex-grow: 1; }
+  .depth-row .d-url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: #00d4ff;
+    word-break: break-all;
+  }
+  .d0 { border-left-color: #555; }
+  .d0 .d-label { background: #333; color: #aaa; }
+  .d1 { border-left-color: #22c55e; margin-left: 40px; }
+  .d1 .d-label { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .d2 { border-left-color: #f59e0b; margin-left: 80px; }
+  .d2 .d-label { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+  .arrow-down {
+    margin-left: 30px;
+    color: #555;
+    font-size: 1.2rem;
+    padding: 4px 0;
+  }
+  .d1 + .arrow-down { margin-left: 70px; }
+
+  /* ── THREE LAYER CACHE ── */
+  .layers {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .layer-card {
+    flex: 1;
+    min-width: 250px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .layer-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .layer-1::before { background: linear-gradient(90deg, #22c55e, #16a34a); }
+  .layer-2::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+  .layer-3::before { background: linear-gradient(90deg, #7b2ffc, #9333ea); }
+
+  .layer-card h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  .layer-card .speed {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+    margin-bottom: 10px;
+  }
+  .layer-1 .speed { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .layer-2 .speed { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .layer-3 .speed { background: rgba(123,47,252,0.15); color: #b080ff; }
+
+  .layer-card p {
+    color: #888;
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  .layer-card code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.05);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #c9a0ff;
+  }
+
+  /* ── SCORING ── */
+  .score-bars {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .score-row .s-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    min-width: 120px;
+    color: #ddd;
+    font-weight: 600;
+  }
+  .score-row .s-bar-bg {
+    flex-grow: 1;
+    height: 28px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  .score-row .s-bar {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(0,0,0,0.7);
+    transition: width 1s ease;
+  }
+  .score-row .s-formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: #666;
+    min-width: 200px;
+    text-align: right;
+  }
+
+  /* ── LIVE DEMO BOX ── */
+  .demo-box {
+    background: #111118;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin-top: 30px;
+    position: relative;
+  }
+  .demo-box::before {
+    content: 'terminal';
+    position: absolute;
+    top: 8px; right: 14px;
+    font-size: 0.65rem;
+    color: #444;
+    letter-spacing: 1px;
+  }
+  .demo-box .prompt { color: #22c55e; }
+  .demo-box .dim { color: #555; }
+  .demo-box .title { color: #fff; font-weight: 600; }
+  .demo-box .so { color: #f48024; }
+  .demo-box .rd { color: #ff4500; }
+  .demo-box .hn { color: #ff6600; }
+  .demo-box .web { color: #888; }
+  .demo-box .med { color: #22c55e; }
+  .demo-box .url { color: #00d4ff; }
+  .demo-box .accepted { color: #22c55e; }
+  .demo-box .top { color: #f59e0b; }
+  .demo-box .snippet { color: #666; font-style: italic; }
+
+  /* ── GR ANALOGY ── */
+  .gr-box {
+    background: rgba(123,47,252,0.05);
+    border: 1px solid rgba(123,47,252,0.2);
+    border-radius: 14px;
+    padding: 30px;
+    margin-top: 30px;
+  }
+  .gr-box h3 {
+    font-family: 'JetBrains Mono', monospace;
+    color: #b080ff;
+    margin-bottom: 14px;
+  }
+  .gr-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .gr-grid .gr-cell {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+  }
+  .gr-cell.physics { background: rgba(123,47,252,0.08); color: #c9a0ff; }
+  .gr-cell.threads { background: rgba(0,212,255,0.08); color: #7dd4ff; }
+  .gr-cell strong { display: block; font-size: 0.75rem; color: #666; margin-bottom: 4px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 60px 20px;
+    color: #444;
+    font-size: 0.85rem;
+  }
+  footer a { color: #7b2ffc; text-decoration: none; }
+  footer .phi { font-size: 2rem; color: #7b2ffc; margin-bottom: 10px; }
+
+  /* ── ANIMATION ── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .flow-step, .platform-card, .layer-card {
+    animation: fadeIn 0.6s ease forwards;
+    opacity: 0;
+  }
+  .flow-step:nth-child(1) { animation-delay: 0.1s; }
+  .flow-step:nth-child(2) { animation-delay: 0.2s; }
+  .flow-step:nth-child(3) { animation-delay: 0.3s; }
+  .flow-step:nth-child(4) { animation-delay: 0.4s; }
+  .flow-step:nth-child(5) { animation-delay: 0.5s; }
+  .flow-step:nth-child(6) { animation-delay: 0.6s; }
+  .flow-step:nth-child(7) { animation-delay: 0.7s; }
+  .flow-step:nth-child(8) { animation-delay: 0.8s; }
+  .platform-card:nth-child(1) { animation-delay: 0.15s; }
+  .platform-card:nth-child(2) { animation-delay: 0.25s; }
+  .platform-card:nth-child(3) { animation-delay: 0.35s; }
+  .platform-card:nth-child(4) { animation-delay: 0.45s; }
+  .platform-card:nth-child(5) { animation-delay: 0.55s; }
+</style>
+</head>
+<body>
+
+<!-- ════════════ HERO ════════════ -->
+<div class="hero">
+  <h1>phi-thread</h1>
+  <div class="tagline">CONNECT, DON'T CREATE</div>
+  <div class="insight">
+    Every answer already exists somewhere — Stack Overflow, Reddit, HN, GitHub, blogs.<br>
+    You don't need another knowledge base. You need a <strong>router</strong>.<br>
+    <strong>Thread math</strong> = every answer has a permanent coordinate. We link to the EXACT answer, not the page.
+  </div>
+</div>
+
+<!-- ════════════ STEP-BY-STEP FLOW ════════════ -->
+<section>
+  <h2><span class="num">01</span> What happens when you type a query</h2>
+  <p class="subtitle">phi-thread "docker container keeps restarting" → here's every step behind the scenes</p>
+
+  <div class="flow">
+
+    <!-- STEP 1: Query -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-query">?</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>You ask a question</h3>
+        <p>
+          <code>phi-thread "docker container keeps restarting"</code><br><br>
+          The query string is parsed. Platforms are set (default: <code>so, reddit, hn, github, google</code>).
+          Keywords are extracted: <code>{"docker", "container", "restarting"}</code> — stopwords like "keeps" are filtered out.
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 2: Cache Check -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-cache">$</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Layer 1 — Cache check (instant)</h3>
+        <p>
+          Query is hashed: <code>sha256("docker container keeps restarting")[:16]</code> → <code>a3f8b2c1d4e5f6a7</code><br><br>
+          Checks <code>~/.phi-thread/cache/a3f8b2c1d4e5f6a7.json</code><br>
+          If it exists and is &lt; 24 hours old → return cached results immediately. <strong>Done in &lt; 1ms.</strong><br><br>
+          <em>Cache MISS? → Move to Layer 2...</em>
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 3: Index Check -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-index">⊕</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Layer 2 — Keyword index (the self-building KB)</h3>
+        <p>
+          Checks <code>~/.phi-thread/index.json</code> — a persistent keyword → answer-coordinate map that grows with every query you ever make.<br><br>
+          Looks up each keyword: <code>index["docker"]</code>, <code>index["container"]</code>, <code>index["restarting"]</code><br>
+          Each returns a list of previously-seen answer coordinates with scores. Answers matching more keywords rank higher.<br><br>
+          These indexed results are kept as <strong>backup candidates</strong>. Live search still runs to find fresh answers.
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 4: Live Parallel Search -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-search">⇉</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Layer 3 — Live search across 5 platforms</h3>
+        <p>
+          Hits real APIs. All use <code>urllib</code> (zero dependencies, stdlib only):
+        </p>
+        <br>
+        <div class="platforms-grid">
+          <div class="platform-card so-color">
+            <div class="p-icon">📚</div>
+            <div class="p-name">Stack Overflow</div>
+            <div class="p-api">api.stackexchange.com/2.3/search/advanced</div>
+            <div class="p-coord">/questions/{id} → /a/{answer_id}</div>
+          </div>
+          <div class="platform-card rd-color">
+            <div class="p-icon">💬</div>
+            <div class="p-name">Reddit</div>
+            <div class="p-api">reddit.com/search.json</div>
+            <div class="p-coord">/comments/{post}/{slug}/{comment}</div>
+          </div>
+          <div class="platform-card hn-color">
+            <div class="p-icon">🔶</div>
+            <div class="p-name">Hacker News</div>
+            <div class="p-api">hn.algolia.com/api/v1/search</div>
+            <div class="p-coord">/item?id={comment_id}</div>
+          </div>
+          <div class="platform-card gh-color">
+            <div class="p-icon">🐙</div>
+            <div class="p-name">GitHub</div>
+            <div class="p-api">api.github.com/search/issues</div>
+            <div class="p-coord">/{org}/{repo}/issues/{n}</div>
+          </div>
+          <div class="platform-card ddg-color">
+            <div class="p-icon">🌐</div>
+            <div class="p-name">DuckDuckGo</div>
+            <div class="p-api">html.duckduckgo.com/html/</div>
+            <div class="p-coord">catches Twitter, Medium, Dev.to, blogs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5: Deep-link -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-deep">↳</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Thread Math — Deep-link into the answer tree</h3>
+        <p>
+          This is the core insight. We don't just link to the question page. We follow the thread tree and link to the <strong>exact answer</strong>.
+        </p>
+        <br>
+
+        <!-- DEPTH VISUAL -->
+        <div class="depth-visual">
+          <div class="depth-row d0">
+            <div class="d-label">depth 0</div>
+            <div class="d-text">Question: "Docker container keeps restarting"</div>
+          </div>
+          <div class="arrow-down">↓ fetch accepted answer via SO API</div>
+          <div class="depth-row d1">
+            <div class="d-label">depth 1 ✓</div>
+            <div class="d-text">Accepted answer by user (the actual fix)</div>
+            <div class="d-url">stackoverflow.com/a/38716397</div>
+          </div>
+          <div class="arrow-down">↓ could go deeper</div>
+          <div class="depth-row d2">
+            <div class="d-label">depth 2</div>
+            <div class="d-text">Comment on answer (clarification)</div>
+            <div class="d-url">...#comment-1234567</div>
+          </div>
+        </div>
+
+        <p>
+          <strong>Stack Overflow:</strong> API returns <code>accepted_answer_id</code> → we call <code>/questions/{ids}/answers</code> to get the answer body → link to <code>/a/{answer_id}</code><br><br>
+          <strong>Reddit:</strong> For each post, we fetch <code>{permalink}.json?limit=1&sort=top</code> → extract top comment → link to <code>/comments/{post}/{slug}/{comment_id}</code><br><br>
+          <strong>HN:</strong> Algolia returns both stories AND comments. If it's a comment, the <code>objectID</code> IS the direct link: <code>/item?id={comment_id}</code><br><br>
+          This is <strong>thread math</strong>: every answer has a deterministic coordinate in <code>(platform, thread, answer)</code> space.
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 6: Rank -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-rank">⇅</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Rank — Platform score × Title relevance</h3>
+        <p>Each platform scores answers differently, then a relevance multiplier ensures matching titles beat popular-but-unrelated results:</p>
+        <br>
+
+        <div class="score-bars">
+          <div class="score-row">
+            <div class="s-label">Stack Overflow</div>
+            <div class="s-bar-bg">
+              <div class="s-bar" style="width: 90%; background: linear-gradient(90deg, #f48024, #f4a024);">highest base score</div>
+            </div>
+            <div class="s-formula">5.0 + answers×1.5 + views/5000</div>
+          </div>
+          <div class="score-row">
+            <div class="s-label">Reddit</div>
+            <div class="s-bar-bg">
+              <div class="s-bar" style="width: 55%; background: linear-gradient(90deg, #ff4500, #ff6a33);">engagement</div>
+            </div>
+            <div class="s-formula">votes×0.01 + comments×0.1</div>
+          </div>
+          <div class="score-row">
+            <div class="s-label">Hacker News</div>
+            <div class="s-bar-bg">
+              <div class="s-bar" style="width: 50%; background: linear-gradient(90deg, #ff6600, #ff8833);">points + disc.</div>
+            </div>
+            <div class="s-formula">points×0.05 + comments×0.1</div>
+          </div>
+          <div class="score-row">
+            <div class="s-label">GitHub</div>
+            <div class="s-bar-bg">
+              <div class="s-bar" style="width: 35%; background: linear-gradient(90deg, #888, #aaa);">reactions</div>
+            </div>
+            <div class="s-formula">comments×0.2 + reactions×0.1</div>
+          </div>
+          <div class="score-row">
+            <div class="s-label">Web (DDG)</div>
+            <div class="s-bar-bg">
+              <div class="s-bar" style="width: 25%; background: linear-gradient(90deg, #de5833, #e87860);">flat 2.0</div>
+            </div>
+            <div class="s-formula">base score = 2.0</div>
+          </div>
+        </div>
+        <br>
+        <p>
+          Then: <code>final_score = platform_score × title_relevance</code><br>
+          Where <code>title_relevance = |query_keywords ∩ title_keywords| / |query_keywords|</code><br><br>
+          A perfectly matching SO title with 5 upvotes beats a Reddit post with 500 upvotes but irrelevant title (gets 0.1× penalty).
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 7: Save -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-save">💾</div>
+        <div class="connector"></div>
+      </div>
+      <div class="content">
+        <h3>Save — Cache + Index (the KB grows)</h3>
+        <p>
+          <strong>Cache:</strong> Full results saved to <code>~/.phi-thread/cache/{hash}.json</code> with 24hr TTL. Same exact query = instant next time.<br><br>
+          <strong>Index:</strong> Every answer gets its keywords extracted. Each keyword maps to the answer's coordinate + score in <code>~/.phi-thread/index.json</code>.<br><br>
+          This means: you search "docker container restarting" today. Tomorrow someone searches "docker restart loop" — the keyword index finds the answers from yesterday, even though it's a different query. <strong>The KB builds itself.</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 8: Return -->
+    <div class="flow-step">
+      <div class="icon-col">
+        <div class="step-icon icon-return">→</div>
+      </div>
+      <div class="content">
+        <h3>Return — Pretty-printed answers with deep-links</h3>
+        <div class="demo-box">
+<span class="prompt">$</span> phi-thread "docker container keeps restarting" -n 5
+<br><br>
+<span class="title">  phi-thread</span> <span class="dim">|</span> docker container keeps restarting
+<br>
+<span class="dim">  12.3s | 5 answers</span>
+<br><br>
+<span class="title">  1.</span> Docker container keeps restarting <span class="accepted">[accepted answer]</span>
+<br>
+<span class="so">     [SO]</span> <span class="dim">docker</span>
+<br>
+<span class="snippet">     "Note: following issue 11008 and PR 15348, you would avoid the issue with: sudo docker..."</span>
+<br>
+<span class="url">     https://stackoverflow.com/a/38716397</span>  ← exact answer, not question page
+<br><br>
+<span class="title">  2.</span> Mysql docker container keeps restarting <span class="accepted">[accepted answer]</span>
+<br>
+<span class="so">     [SO]</span> <span class="dim">mysql, docker, docker-compose</span>
+<br>
+<span class="url">     https://stackoverflow.com/a/66910240</span>
+<br><br>
+<span class="title">  3.</span> PSA: Check Your Docker Memory Usage <span class="top">[top answer]</span>
+<br>
+<span class="rd">     [Reddit]</span> <span class="dim">r/selfhosted | top comment</span>
+<br>
+<span class="url">     https://reddit.com/.../comments/.../mkj0mru</span>  ← exact comment
+<br><br>
+<span class="title">  4.</span> 10 Best Practices for Docker Containers
+<br>
+<span class="med">     [Medium]</span> <span class="dim">via DuckDuckGo</span>
+<br>
+<span class="url">     https://medium.com/...</span>  ← caught by web search
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /flow -->
+</section>
+
+<!-- ════════════ THREE LAYERS ════════════ -->
+<section>
+  <h2><span class="num">02</span> Three-layer search: how the KB builds itself</h2>
+  <p class="subtitle">First query = slow (live search). Same query = instant (cache). Similar query = fast (index).</p>
+
+  <div class="layers">
+    <div class="layer-card layer-1">
+      <h4>Layer 1: Exact Cache</h4>
+      <div class="speed">&lt; 1ms</div>
+      <p>
+        SHA256 hash of normalized query → JSON file.<br>
+        <code>~/.phi-thread/cache/{hash}.json</code><br>
+        TTL: 24 hours. Same exact question = instant return.
+      </p>
+    </div>
+    <div class="layer-card layer-2">
+      <h4>Layer 2: Keyword Index</h4>
+      <div class="speed">~5ms</div>
+      <p>
+        Persistent map: keyword → [answer coordinates].<br>
+        <code>~/.phi-thread/index.json</code><br>
+        Lives forever. "docker restart" finds answers from "docker container restarting" because they share keywords.
+        <strong>This is the self-building KB.</strong>
+      </p>
+    </div>
+    <div class="layer-card layer-3">
+      <h4>Layer 3: Live Search</h4>
+      <div class="speed">5-15s</div>
+      <p>
+        Hits real APIs: SO, Reddit, HN, GitHub, DuckDuckGo.<br>
+        Fetches answers, follows thread trees for deep-links.<br>
+        Results are cached (Layer 1) and indexed (Layer 2) for the future.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ THREAD COORDINATES ════════════ -->
+<section>
+  <h2><span class="num">03</span> Thread coordinates — the math</h2>
+  <p class="subtitle">Every answer on every platform has a permanent, deterministic address.</p>
+
+  <table class="coord-table">
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Coordinate format</th>
+        <th>What phi-thread does</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Stack Overflow</td>
+        <td><code>/a/{answer_id}</code></td>
+        <td>Fetches <code>accepted_answer_id</code> from question → builds deep-link to exact answer</td>
+      </tr>
+      <tr>
+        <td>Reddit</td>
+        <td><code>/comments/{post}/{slug}/{comment_id}</code></td>
+        <td>Fetches post JSON with <code>?sort=top&limit=1</code> → extracts top comment ID → builds permalink</td>
+      </tr>
+      <tr>
+        <td>Hacker News</td>
+        <td><code>/item?id={objectID}</code></td>
+        <td>Algolia returns stories AND comments. Comments have <code>story_id</code> — the objectID IS the deep-link</td>
+      </tr>
+      <tr>
+        <td>GitHub</td>
+        <td><code>/{org}/{repo}/issues/{n}</code></td>
+        <td>GitHub search API → direct issue URL</td>
+      </tr>
+      <tr>
+        <td>Slack</td>
+        <td><code>/archives/{ch}/p{ts}?thread_ts={parent}</code></td>
+        <td>The original insight — message timestamp IS the ID. This is where it all started.</td>
+      </tr>
+      <tr>
+        <td>Twitter/X</td>
+        <td><code>/{user}/status/{snowflake}</code></td>
+        <td>Snowflake IDs embed timestamp: <code>ts = (id >> 22) + 1288834974657</code>. Caught via DuckDuckGo.</td>
+      </tr>
+      <tr>
+        <td>Discord</td>
+        <td><code>/channels/{server}/{ch}/{snowflake}</code></td>
+        <td>Same snowflake math: <code>ts = (id >> 22) + 1420070400000</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- GR ANALOGY -->
+  <div class="gr-box">
+    <h3>The spacetime analogy</h3>
+    <p style="color: #999; margin-bottom: 16px;">An answer is an event in information spacetime. Thread coordinates are its (platform, thread, time) position.</p>
+    <div class="gr-grid">
+      <div class="gr-cell physics"><strong>General Relativity</strong>Event = point in spacetime (x, y, z, t)</div>
+      <div class="gr-cell threads"><strong>Thread Math</strong>Answer = point in (platform, thread_id, timestamp)</div>
+      <div class="gr-cell physics"><strong>GR</strong>Light cone = causal future/past</div>
+      <div class="gr-cell threads"><strong>Threads</strong>Reply timestamp must be > parent timestamp</div>
+      <div class="gr-cell physics"><strong>GR</strong>Gravity curves spacetime → affects paths</div>
+      <div class="gr-cell threads"><strong>Threads</strong>Trust/score curves routing → affects which answer you see</div>
+      <div class="gr-cell physics"><strong>GR</strong>Coordinate system = reference frame</div>
+      <div class="gr-cell threads"><strong>Threads</strong>Platform = reference frame (each has its own ID scheme)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ARCHITECTURE ════════════ -->
+<section>
+  <h2><span class="num">04</span> Architecture — zero dependencies</h2>
+  <p class="subtitle">Entire thing is stdlib Python. urllib + json. Installs in 1 second.</p>
+
+  <div style="background: #111118; border-radius: 12px; padding: 24px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; line-height: 2; color: #888;">
+    <span style="color:#7b2ffc">phi_thread/</span><br>
+    ├── <span style="color:#fff">__init__.py</span> <span style="color:#444">← version (0.2.0)</span><br>
+    ├── <span style="color:#fff">search.py</span>  <span style="color:#444">← core engine (689 lines)</span><br>
+    │   ├── <span style="color:#00d4ff">Answer</span>          <span style="color:#444">← dataclass: platform, title, url, score, coordinate</span><br>
+    │   └── <span style="color:#00d4ff">ThreadSearch</span>    <span style="color:#444">← search engine + cache + index</span><br>
+    │       ├── search()                  <span style="color:#444">← 3-layer: cache → index → live</span><br>
+    │       ├── _search_stackoverflow()   <span style="color:#444">← SO API + fetch accepted answers</span><br>
+    │       ├── _fetch_so_answers()       <span style="color:#22c55e">← DEEP: question → accepted answer body</span><br>
+    │       ├── _search_reddit()          <span style="color:#444">← Reddit JSON + fetch top comment</span><br>
+    │       ├── _fetch_reddit_top_comment()<span style="color:#22c55e">← DEEP: post → top comment</span><br>
+    │       ├── _search_hn()              <span style="color:#444">← Algolia (stories + comments)</span><br>
+    │       ├── _search_github()          <span style="color:#444">← GitHub Issues search</span><br>
+    │       ├── _search_google()          <span style="color:#444">← DuckDuckGo HTML (catches everything else)</span><br>
+    │       ├── _index_answer()           <span style="color:#f59e0b">← INDEX: add to keyword KB</span><br>
+    │       └── _search_index()           <span style="color:#f59e0b">← INDEX: search keyword KB</span><br>
+    └── <span style="color:#fff">cli.py</span>     <span style="color:#444">← terminal UI with colors + depth markers</span><br>
+    <br>
+    <span style="color:#7b2ffc">~/.phi-thread/</span> <span style="color:#444">← persistent state</span><br>
+    ├── <span style="color:#22c55e">cache/</span>    <span style="color:#444">← exact query cache (24hr TTL)</span><br>
+    │   └── {sha256}.json<br>
+    └── <span style="color:#f59e0b">index.json</span> <span style="color:#444">← keyword → coordinates (forever, grows with use)</span>
+  </div>
+</section>
+
+<!-- ════════════ FOOTER ════════════ -->
+<footer>
+  <div class="phi">φ</div>
+  <p><code>pip install phi-thread</code></p>
+  <p style="margin-top: 8px;"><a href="https://pypi.org/project/phi-thread/">PyPI</a> · <a href="https://github.com/0x-auth/phi-thread">GitHub</a></p>
+  <p style="margin-top: 20px; color: #333;">connect, don't create · v0.2.0</p>
+</footer>
+
+</body>
+</html>
