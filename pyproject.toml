@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phi-thread"
+version = "0.1.0"
+description = "Find answers across platforms. Connect, don't create."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Abhishek Srivastava", email = "bitsabhi@gmail.com"},
+]
+keywords = ["search", "stackoverflow", "reddit", "answers", "knowledge", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+phi-thread = "phi_thread.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/0x-auth/phi-thread"
+Repository = "https://github.com/0x-auth/phi-thread"
