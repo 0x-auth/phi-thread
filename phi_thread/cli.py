@@ -28,6 +28,12 @@ PLATFORM_COLORS = {
     'reddit': '\033[38;5;202m',          # Red-orange
     'hn': '\033[38;5;215m',              # Light orange
     'github': '\033[38;5;255m',          # White
+    'twitter': '\033[38;5;39m',          # Blue
+    'medium': '\033[38;5;82m',           # Green
+    'devto': '\033[38;5;99m',            # Purple
+    'serverfault': '\033[38;5;208m',     # Orange (SE family)
+    'superuser': '\033[38;5;208m',       # Orange (SE family)
+    'web': '\033[38;5;245m',             # Gray
 }
 
 PLATFORM_LABELS = {
@@ -35,6 +41,12 @@ PLATFORM_LABELS = {
     'reddit': 'Reddit',
     'hn': 'HN',
     'github': 'GitHub',
+    'twitter': 'Twitter',
+    'medium': 'Medium',
+    'devto': 'Dev.to',
+    'serverfault': 'ServerFault',
+    'superuser': 'SuperUser',
+    'web': 'Web',
 }
 
 PLATFORM_MAP = {
@@ -45,6 +57,8 @@ PLATFORM_MAP = {
     'hackernews': 'hn',
     'github': 'github',
     'gh': 'github',
+    'google': 'google',
+    'web': 'google',
 }
 
 
@@ -67,8 +81,8 @@ def main():
     parser.add_argument(
         '-p', '--platforms',
         type=str,
-        default='so,reddit,hn,github',
-        help='Platforms to search (comma-separated: so,reddit,hn,github)',
+        default='so,reddit,hn,github,google',
+        help='Platforms to search (comma-separated: so,reddit,hn,github,google)',
     )
     parser.add_argument(
         '--no-cache',
@@ -131,8 +145,22 @@ def main():
         import html
         title = html.unescape(answer.title)
 
-        print(f"  {BOLD}{i+1}.{RESET} {title}")
+        # Show depth indicator: → for answer, ↳ for comment
+        depth_marker = ""
+        if getattr(answer, 'is_accepted', False):
+            depth_marker = f" {GREEN}[accepted answer]{RESET}"
+        elif getattr(answer, 'depth', 0) == 1:
+            depth_marker = f" {YELLOW}[top answer]{RESET}"
+
+        print(f"  {BOLD}{i+1}.{RESET} {title}{depth_marker}")
         print(f"     {color}[{label}]{RESET} {DIM}{answer.preview}{RESET}")
+
+        # Show answer snippet if available
+        answer_text = getattr(answer, 'answer_text', '')
+        if answer_text:
+            snippet = answer_text[:120].replace('\n', ' ')
+            print(f"     {DIM}\"{snippet}...\"{RESET}")
+
         print(f"     {CYAN}{answer.url}{RESET}")
         print()
 
